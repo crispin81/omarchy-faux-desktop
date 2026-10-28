@@ -15,11 +15,15 @@ files in, and open folders inside it, spring-loaded like on macOS.
    of the way when you let go.
 3. **Put a file in:** drag it from any app onto the Faux Desktop box. Let go
    right away to drop it on the Desktop, or hold it there for a moment and the
-   panel opens so you can drop it into a folder. Hold over a folder and it
-   springs open, and hold over ← to go back up.
-4. **Look elsewhere:** the buttons along the top switch to Downloads, Documents,
+   panel opens so you can drop it into a folder.
+4. **Spring-loaded folders**, as on macOS: while dragging, hold over a folder
+   for 0.4 seconds and it springs open, so you can go as deep as you like before
+   letting go. Hold over ← to spring back up a level, or over a pinned folder
+   button to jump to Downloads, Documents and so on. A sweep across the target
+   shows the wait.
+5. **Look elsewhere:** the buttons along the top switch to Downloads, Documents,
    Pictures or Videos. Click a folder to go into it.
-5. **Move away** and the panel closes. Next time it opens on the Desktop again.
+6. **Move away** and the panel closes. Next time it opens on the Desktop again.
 
 ![Faux Desktop in list view](screenshots/list-view.png)
 
