@@ -1,0 +1,4 @@
+singleton HotspotStore 1.0 HotspotStore.qml
+FileRow 1.0 FileRow.qml
+HotspotPopup 1.0 HotspotPopup.qml
+FileTile 1.0 FileTile.qml

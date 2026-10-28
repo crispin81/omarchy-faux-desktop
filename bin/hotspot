@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# hotspot: read the hotspot folder for the bar widget, with a ceiling.
+#
+# FolderListModel reads a directory by enumerating all of it, stat-ing every
+# entry and sorting the lot, and only then can QML see a count. On a folder
+# nobody has cleaned out, or one filled on purpose, that whole walk lands on
+# the UI thread of a shell that never restarts. Measured on 41k files: a batch
+# of 300 arrivals cost 7 seconds of CPU.
+#
+# So the size of the folder is decided here, before anything expensive is
+# allowed to happen, and the expensive read itself runs in this short-lived
+# process rather than in the shell.
+#
+#   probe DIR   how many entries, counted no further than the cap and without
+#               stat-ing anything. This is what tells QML whether attaching
+#               the model is safe.
+#   list DIR    the newest files as JSON, bounded by entries and by bytes.
+
+set -uo pipefail
+
+die() { printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"; exit 0; }
+
+# Entries probe stops counting at. Anything at or above this is "too big to
+# watch" as far as the widget is concerned, and the exact number past it is
+# not interesting: the answer is the same either way.
+readonly PROBE_CAP=2000
+# Entries list is allowed to stat, and rows it may return. The first bounds
+# the work, the second bounds what crosses into QML.
+readonly SCAN_CAP=5000
+readonly ROW_CAP=200
+
+valid_dir() {
+  local d=$1
+  # Absolute path only: a folder setting like "-foo" or a relative one has no
+  # business reaching a readdir, and refusing is cheaper than repairing.
+  [[ $d == /* ]] || return 1
+  [[ -d $d ]] || return 1
+  [[ ! -L $d ]] || return 1
+  return 0
+}
+
+cmd_probe() {
+  local dir=$1 n
+  valid_dir "$dir" || die "not a directory"
+  # -U is the whole point: no sorting, so ls streams entries as readdir hands
+  # them over and head can stop it. No -l either, so nothing is stat-ed.
+  # SIGPIPE ends ls once head has seen enough, which makes this O(cap) rather
+  # than O(folder).
+  n=$(ls -U -A -- "$dir" 2>/dev/null | head -n "$((PROBE_CAP + 1))" | wc -l)
+  [[ $n =~ ^[0-9]+$ ]] || n=0
+  if (( n > PROBE_CAP )); then
+    printf '{"ok":true,"entries":%s,"over":true}\n' "$PROBE_CAP"
+  else
+    printf '{"ok":true,"entries":%s,"over":false}\n' "$n"
+  fi
+}
+
+cmd_list() {
+  local dir=$1
+  valid_dir "$dir" || die "not a directory"
+  DL_SCAN_CAP=$SCAN_CAP DL_ROW_CAP=$ROW_CAP python3 - "$dir" <<'PY'
+import json, os, sys
+
+directory = sys.argv[1]
+scan_cap = int(os.environ["DL_SCAN_CAP"])
+row_cap = int(os.environ["DL_ROW_CAP"])
+
+rows = []
+scanned = 0
+truncated = False
+
+try:
+    with os.scandir(directory) as it:
+        for entry in it:
+            if scanned >= scan_cap:
+                truncated = True
+                break
+            scanned += 1
+            # Dot entries stay out, as they do for the folder model
+            # (showHidden: false), so both routes show the same thing.
+            if entry.name.startswith("."):
+                continue
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+                if not is_dir and not entry.is_file(follow_symlinks=False):
+                    continue
+                stat = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            rows.append((stat.st_mtime, stat.st_size, entry.name, is_dir))
+except OSError as exc:
+    print(json.dumps({"ok": False, "error": str(exc)}))
+    sys.exit(0)
+
+# Newest first, which is the order the window wants: the file you just
+# downloaded is the one you came for.
+rows.sort(key=lambda r: r[0], reverse=True)
+hidden = max(0, len(rows) - row_cap)
+rows = rows[:row_cap]
+
+files = [
+    {
+        "name": name,
+        "path": os.path.join(directory, name),
+        "size": size,
+        "isDir": is_dir,
+        "modified": int(mtime * 1000),
+    }
+    for (mtime, size, name, is_dir) in rows
+]
+
+print(json.dumps({
+    "ok": True,
+    "files": files,
+    "hidden": hidden,
+    "scanned": scanned,
+    "truncated": truncated,
+}, ensure_ascii=False))
+PY
+}
+
+# setup DIR: make sure the folder exists and is in the file manager sidebar.
+# Adds it as the first GTK bookmark when it is not bookmarked at all; a
+# bookmark the user already has (wherever they moved it) is left alone.
+# Safe to run on every start.
+cmd_setup() {
+  local dir=$1 bookmarks="$HOME/.config/gtk-3.0/bookmarks" uri
+  [[ $dir == /* ]] || die "not an absolute path"
+  mkdir -p -- "$dir" || die "cannot create folder"
+  mkdir -p -- "${bookmarks%/*}"
+  [[ -f $bookmarks ]] || : > "$bookmarks"
+  uri=$(python3 -c 'import sys, urllib.parse; print("file://" + urllib.parse.quote(sys.argv[1]))' "$dir")
+  if ! awk -v u="$uri" '$1 == u { found = 1 } END { exit !found }' "$bookmarks"; then
+    { printf '%s %s\n' "$uri" "${dir##*/}"; cat -- "$bookmarks"; } > "$bookmarks.tmp.$$" && mv -- "$bookmarks.tmp.$$" "$bookmarks"
+  fi
+  printf '{"ok":true}\n'
+}
+
+# firstrun: ask once, on the plugin's first load, whether to set up a Desktop
+# folder. Nothing is created or bookmarked until the user says so; ignoring or
+# dismissing the notification leaves the plugin on Downloads. The answer is
+# kept in $XDG_STATE_HOME/faux-desktop/setup ("desktop" or "downloads"), which
+# the plugin watches. To be asked again, delete that file.
+cmd_firstrun() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/faux-desktop" choice
+  local state="$dir/setup"
+  [[ -e $state ]] && return 0
+  mkdir -p -- "$dir" || return 0
+  # Mark it asked before showing anything, so a second shell start while the
+  # notification is still up does not ask twice.
+  printf 'asked\n' > "$state"
+  # Omarchy's notifications run the "default" action when the notification is
+  # clicked and show no buttons; other daemons show it as a button. Either
+  # way, setting up Desktop takes an explicit click, and dismissing is "no".
+  choice=$(notify-send --app-name="Faux Desktop" --expire-time=0 --wait \
+    --action=default="Set up Desktop" \
+    "Faux Desktop: set up a Desktop folder?" \
+    "Click here to create ~/Desktop and pin it to the top of the file manager sidebar. Dismiss to use Downloads instead." 2>/dev/null)
+  if [[ $choice == default ]]; then
+    cmd_setup "$HOME/Desktop" >/dev/null && printf 'desktop\n' > "$state"
+  else
+    printf 'downloads\n' > "$state"
+  fi
+}
+
+case "${1:-}" in
+  probe) shift; cmd_probe "${1:-}" ;;
+  list)  shift; cmd_list "${1:-}" ;;
+  setup) shift; cmd_setup "${1:-}" ;;
+  firstrun) cmd_firstrun ;;
+  *) die "usage: hotspot probe|list|setup DIR | firstrun" ;;
+esac

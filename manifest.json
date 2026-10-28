@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "id": "crispin81.faux-desktop",
+  "name": "Faux Desktop",
+  "version": "1.0.0",
+  "author": "Chris Cork",
+  "description": "Files on your desktop, from the bar: hover to open a folder panel, drag files out into any app, drop files in, spring-loaded folders",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Faux Desktop",
+    "description": "Files on your desktop, from the bar: hover to open a folder panel, drag files out into any app, drop files in, spring-loaded folders",
+    "category": "Apps",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": {},
+    "schema": [
+      {
+        "key": "folder",
+        "type": "string",
+        "label": "Folder (empty: Desktop if set up on first run, else Downloads)",
+        "default": ""
+      },
+      {
+        "key": "openOnHover",
+        "type": "bool",
+        "label": "Open on hover",
+        "default": true
+      },
+      {
+        "key": "hoverDelay",
+        "type": "int",
+        "label": "Hover delay (ms)",
+        "min": 0,
+        "max": 2000,
+        "default": 0
+      },
+      {
+        "key": "slotWidth",
+        "type": "int",
+        "label": "Minimum box width in px (0 = fit label)",
+        "min": 0,
+        "max": 600,
+        "default": 0
+      },
+      {
+        "key": "sortBy",
+        "type": "enum",
+        "label": "Sort by",
+        "options": [
+          "newest",
+          "name"
+        ],
+        "default": "newest"
+      },
+      {
+        "key": "dropAction",
+        "type": "enum",
+        "label": "Files dropped in are",
+        "options": [
+          "copied",
+          "moved"
+        ],
+        "default": "copied"
+      },
+      {
+        "key": "viewMode",
+        "type": "enum",
+        "label": "View",
+        "options": [
+          "list",
+          "icons"
+        ],
+        "default": "list"
+      },
+      {
+        "key": "panelWidth",
+        "type": "int",
+        "label": "Panel width (px)",
+        "min": 360,
+        "max": 8000,
+        "default": 1040
+      },
+      {
+        "key": "panelHeight",
+        "type": "int",
+        "label": "Panel height (px)",
+        "min": 240,
+        "max": 8000,
+        "default": 600
+      }
+    ]
+  },
+  "homepage": "https://github.com/crispin81/omarchy-faux-desktop"
+}
