@@ -4,7 +4,24 @@ Miss having files on your desktop? Faux Desktop puts a folder on the Omarchy bar
 Hover over it and the folder opens as a panel. Drag files out into any app, drop
 files in, and open folders inside it, spring-loaded like on macOS.
 
-![Faux Desktop](preview.png)
+![Faux Desktop in icon view](preview.png)
+
+## How it works
+
+1. **Point at the Faux Desktop box** on the bar, or throw the pointer to the top
+   edge of the screen above it. The panel opens straight away on your Desktop
+   folder.
+2. **Take a file out:** drag it from the panel into any app. The panel gets out
+   of the way when you let go.
+3. **Put a file in:** drag it from any app onto the Faux Desktop box. Let go
+   right away to drop it on the Desktop, or hold it there for a moment and the
+   panel opens so you can drop it into a folder. Hold over a folder and it
+   springs open, and hold over ← to go back up.
+4. **Look elsewhere:** the buttons along the top switch to Downloads, Documents,
+   Pictures or Videos. Click a folder to go into it.
+5. **Move away** and the panel closes. Next time it opens on the Desktop again.
+
+![Faux Desktop in list view](screenshots/list-view.png)
 
 ## Features
 
