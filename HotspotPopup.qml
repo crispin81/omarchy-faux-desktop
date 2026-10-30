@@ -39,24 +39,28 @@ PanelWindow {
   // strip the bar paints; the strip's thickness is what the bar publishes.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
-  readonly property real cardWidth: Math.min(contentWidth, Math.max(1, width - gap * 2
+  // Card geometry comes from the screen rather than the surface, which is
+  // shrunk to a pixel while closed (see anchors below)
+  readonly property real fullWidth: screen ? screen.width : width
+  readonly property real fullHeight: screen ? screen.height : height
+  readonly property real cardWidth: Math.min(contentWidth, Math.max(1, popup.fullWidth - gap * 2
     - (barPosition === "left" || barPosition === "right" ? barThickness : 0)))
-  readonly property real cardHeight: Math.min(contentHeight, Math.max(1, height - gap * 2
+  readonly property real cardHeight: Math.min(contentHeight, Math.max(1, popup.fullHeight - gap * 2
     - (barPosition === "top" || barPosition === "bottom" ? barThickness : 0)))
   readonly property point cardPosition: {
     anchorTracker.transform
-    var p = anchorItem && anchorWindow ? anchorItem.mapToItem(anchorWindow.contentItem, 0, 0) : Qt.point(width - cardWidth, 0)
+    var p = anchorItem && anchorWindow ? anchorItem.mapToItem(anchorWindow.contentItem, 0, 0) : Qt.point(popup.fullWidth - cardWidth, 0)
     var aw = anchorItem ? anchorItem.width : 0
     var ah = anchorItem ? anchorItem.height : 0
     // Left edge under the bar box, so resizing from the bottom-right corner
     // keeps the top-left still.
     var x = p.x
     var y = barThickness + gap
-    if (barPosition === "bottom") y = height - barThickness - cardHeight - gap
+    if (barPosition === "bottom") y = popup.fullHeight - barThickness - cardHeight - gap
     else if (barPosition === "left") { x = barThickness + gap; y = p.y + ah / 2 - cardHeight / 2 }
-    else if (barPosition === "right") { x = width - barThickness - cardWidth - gap; y = p.y + ah / 2 - cardHeight / 2 }
-    return Qt.point(Math.round(Math.max(gap, Math.min(x, width - cardWidth - gap))),
-                    Math.round(Math.max(gap, Math.min(y, height - cardHeight - gap))))
+    else if (barPosition === "right") { x = popup.fullWidth - barThickness - cardWidth - gap; y = p.y + ah / 2 - cardHeight / 2 }
+    return Qt.point(Math.round(Math.max(gap, Math.min(x, popup.fullWidth - cardWidth - gap))),
+                    Math.round(Math.max(gap, Math.min(y, popup.fullHeight - cardHeight - gap))))
   }
 
   TransformWatcher {
@@ -109,10 +113,16 @@ PanelWindow {
   // Mapped once and kept: creating a layer surface on every hover is the lag
   // you feel. Closed, it is invisible and its input region is empty, so it
   // never takes a click or a hover from anything beneath it.
+  // Closed, it also shrinks to a single pixel: a full-screen surface under a
+  // blur rule makes the compositor re-blur the whole screen whenever anything
+  // beneath it changes, even though it is see-through. Resizing a mapped
+  // surface is cheap; creating one is what lags.
   visible: !!screen
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
-  anchors { top: true; bottom: true; left: true; right: true }
+  anchors { top: true; left: true; bottom: popup.open; right: popup.open }
+  implicitWidth: 1
+  implicitHeight: 1
   WlrLayershell.namespace: "crispin81.faux-desktop"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: !open || dragging ? WlrKeyboardFocus.None
